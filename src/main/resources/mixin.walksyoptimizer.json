@@ -1,0 +1,15 @@
+{
+	"required": true,
+	"package": "walksy.optimizer.mixin",
+	"compatibilityLevel": "JAVA_17",
+	"client": [
+		"ClientPlayNetworkHandlerMixin",
+		"ClientPlayerInteractionManagerMixin",
+		"ClientWorldMixin",
+		"EndCrystalItemMixin",
+		"ExplosionMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

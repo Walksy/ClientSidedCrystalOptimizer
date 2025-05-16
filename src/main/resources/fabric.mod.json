@@ -1,0 +1,30 @@
+{
+	"schemaVersion": 1,
+	"id": "walksyoptimizerv2",
+	"version": "${version}",
+	"name": "Walksy's Client Sided Crystal Optimizer",
+	"description": "",
+	"authors": [
+		"Walksy"
+	],
+	"contact": {
+
+	},
+	"license": "MIT",
+	"icon": "assets/walksy/icon.png",
+	"environment": "client",
+	"entrypoints": {
+		"main": [
+			"walksy.optimizer.WalksyOptimizerMod"
+		]
+	},
+	"mixins": [
+		"mixin.walksyoptimizer.json"
+	],
+	"depends": {
+		"fabricloader": "*",
+		"minecraft": "*",
+		"java": ">=17",
+		"fabric-api": "*"
+	}
+}
