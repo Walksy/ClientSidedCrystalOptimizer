@@ -1,6 +1,6 @@
 {
 	"schemaVersion": 1,
-	"id": "walksyoptimizerv2",
+	"id": "clientsidedcrystaloptimizer",
 	"version": "${version}",
 	"name": "Walksy's Client Sided Crystal Optimizer",
 	"description": "",
@@ -19,7 +19,7 @@
 		]
 	},
 	"mixins": [
-		"mixin.walksyoptimizer.json"
+		"mixin.clientsidedcrystaloptimizer.json"
 	],
 	"depends": {
 		"fabricloader": "*",
