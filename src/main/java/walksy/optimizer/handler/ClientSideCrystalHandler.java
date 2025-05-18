@@ -28,7 +28,7 @@ public class ClientSideCrystalHandler {
     private static ClientCrystalFactory FACTORY;
 
     /**
-     * Scuffed way of created a concurrent hash set
+     * Scuffed way of creating a concurrent hash set
      * Allows for thread-safe collections -> safe access + modification
      */
 
