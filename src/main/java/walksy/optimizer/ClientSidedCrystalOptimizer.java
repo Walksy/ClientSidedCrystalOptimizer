@@ -5,7 +5,8 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
 
 
-public class ClientSidedCrystalOptimizer implements ModInitializer {
+public class WalksyOptimizerMod implements ModInitializer {
+
 
     @Override
     public void onInitialize() {
@@ -13,7 +14,7 @@ public class ClientSidedCrystalOptimizer implements ModInitializer {
     }
 
     public static void log(Object message) {
-        if (false) {
+        if (true) {
             MinecraftClient.getInstance().inGameHud.getChatHud().addMessage(Text.of((String) message));
         }
     }

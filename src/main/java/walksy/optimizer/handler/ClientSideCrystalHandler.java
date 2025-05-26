@@ -1,12 +1,16 @@
 package walksy.optimizer.handler;
 
+import net.minecraft.block.BlockState;
+import net.minecraft.block.Blocks;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.sound.SoundEvents;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import org.joml.Math;
 import org.spongepowered.asm.mixin.injection.invoke.arg.Args;
+import walksy.optimizer.buffer.ClientCrystalBuffer;
 import walksy.optimizer.factory.ClientCrystalEntity;
 import walksy.optimizer.factory.ClientCrystalFactory;
 import net.minecraft.client.world.ClientWorld;
@@ -21,19 +25,20 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static walksy.optimizer.ClientSidedCrystalOptimizer.log;
+import static walksy.optimizer.WalksyOptimizerMod.log;
 
 public class ClientSideCrystalHandler {
 
-    private static ClientCrystalFactory FACTORY;
+    //TODO - fix the problem where if the server doesn't have the fast crystal plugin, or the correct one, player's can't spawn crystals
+    //as they break the crystal before the server spawns it in, causing desyncs
+
+    private static final ClientCrystalFactory FACTORY = new ClientCrystalFactory();
+    private static final ClientCrystalBuffer BUFFER = ClientCrystalBuffer.createBuffer();
 
     /**
-     * Scuffed way of creating a concurrent hash set
+     * Scuffed way of created a concurrent hash set
      * Allows for thread-safe collections -> safe access + modification
      */
-
-    private static final Set<ClientCrystalEntity> clientSidedCrystals
-            = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     private static final Set<Vec3d> positionHistory
             = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -41,17 +46,7 @@ public class ClientSideCrystalHandler {
     private static final Set<Vec3d> pendingSoundSuppressions
             = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-    static {
-        initializeSystem();
-    }
 
-    public ClientSideCrystalHandler() {
-        FACTORY = new ClientCrystalFactory();
-    }
-
-    private static void initializeSystem() {
-        new ClientSideCrystalHandler();
-    }
 
     /**
      * When the server eventually spawns in an end crystal, it would overlap over the client crystal
@@ -64,11 +59,31 @@ public class ClientSideCrystalHandler {
 
     public static void handleIncomingServerEntity(EndCrystalEntity incomingCrystal, ClientWorld currentWorld) {
         log("Incoming crystal from server at pos: " + incomingCrystal.getPos());
-        for (ClientCrystalEntity clientCrystal : clientSidedCrystals) {
+        for (ClientCrystalEntity clientCrystal : BUFFER.all()) {
             if (positionsMatch(clientCrystal.getPos(), incomingCrystal.getPos())) {
-                triggerDesynchronizationCorrection(clientCrystal, incomingCrystal, currentWorld);
+                sync(clientCrystal, incomingCrystal, currentWorld);
             }
         }
+    }
+
+    /**
+     * Fixes a bug where if a client crystal is spawned on top of a client sided 'ghost' obsidian, and the server
+     * rejects this obsidian spawn, then it removes the client crystal ensuring it isn't floating on nothing
+     */
+
+    public static void handleBlockUpdates(BlockPos pos, BlockState state) {
+        ClientCrystalEntity clientCrystal = BUFFER.get(pos);
+        if (clientCrystal == null) return;
+        if (clientCrystal.getInteractPos().equals(pos) && state.isAir()) //ghost block occurred
+        {
+            log("Removing client crystal due to desync at: " + pos);
+            destroyClientCrystal(clientCrystal, MinecraftClient.getInstance().world, false);
+        }
+    }
+
+    public static void onDisconnect()
+    {
+        BUFFER.clear(); //clear client crystals from memory
     }
 
     /**
@@ -89,11 +104,14 @@ public class ClientSideCrystalHandler {
             positionHistory.add(destroyedCrystal.getPos());
             playExplosionSound(world, destroyedCrystal.getPos());
         }
-        world.removeEntity(destroyedCrystal.getId(), Entity.RemovalReason.KILLED);
+        if (BUFFER.remove(destroyedCrystal)) {
+            world.removeEntity(destroyedCrystal.getId(), Entity.RemovalReason.KILLED);
+        }
     }
 
-    public static void interceptServerCrystalSpawn(EndCrystalEntity crystalEntity, CallbackInfo callbackInfo) {
+    public static void handleClientWorldCrystalSpawns(EndCrystalEntity crystalEntity, CallbackInfo callbackInfo) {
         Vec3d spawnLocation = crystalEntity.getPos();
+        log("Crystal being spawned into the client world at: " + crystalEntity.getPos());
         if (positionHistory.contains(spawnLocation)) {
             log("Cancelled crystal spawn at: " + crystalEntity.getPos());
             positionHistory.remove(spawnLocation);
@@ -105,39 +123,40 @@ public class ClientSideCrystalHandler {
     public static void interceptServerExplosionSound(Vec3d pos, Args args) {
         if (pendingSoundSuppressions.contains(pos)) {
             log("Suppressing server explosion sound at: " + pos);
-            args.set(5, 0F); //Set volume to 0 - skip over sound
+            args.set(5, 0F); //Set volume to 0
             pendingSoundSuppressions.remove(pos);
         }
     }
 
 
     /**
-     * Spawns a client-sided end crystal (stored as an instance of ClientCrystalEntity to be tracked via 'registerClientDestruction')
+     * Spawns a client-sided end crystal (stored as an instance of ClientCrystalEntity to be tracked via 'interceptServerCrystalSpawn')
      */
 
-    public static void trySpawnClientCrystal(ClientWorld simulatedWorld, double posX, double posY, double posZ) {
+    public static void trySpawnClientCrystal(ClientWorld world, BlockPos interactPos, double posX, double posY, double posZ) {
         //Creates the client crystal
-        ClientCrystalEntity clientCrystal = FACTORY.create(simulatedWorld, posX, posY, posZ);
+        ClientCrystalEntity clientCrystal = FACTORY.create(world, interactPos, posX, posY, posZ);
 
         //Checks if the client crystal already exists
-        if (!isAlreadyTracked(clientCrystal)) {
-            log("Attempting clientside crystal spawn at: " + clientCrystal.getPos());
-            performSpawnSimulation(clientCrystal, simulatedWorld);
+        log("Attempting clientside crystal spawn at: " + clientCrystal.getPos());
+        if (trySpawnClientCrystal(clientCrystal, interactPos, world)) {
+            log("Successfully Spawned a client crystal at: " + clientCrystal.getPos());
         }
     }
 
-    private static boolean isAlreadyTracked(ClientCrystalEntity crystalEntity) {
-        return clientSidedCrystals.contains(crystalEntity);
-    }
 
     /**
      * Adds an entity via ClientWorld#addEntity
      * Adds the client crystal to the concurrent hash set
      */
 
-    private static void performSpawnSimulation(ClientCrystalEntity crystalEntity, ClientWorld worldContext) {
-        clientSidedCrystals.add(crystalEntity);
-        worldContext.addEntity(crystalEntity);
+    private static boolean trySpawnClientCrystal(ClientCrystalEntity crystalEntity, BlockPos interactPos, ClientWorld world) {
+        if (BUFFER.contains(crystalEntity)) return false;
+        if (BUFFER.add(crystalEntity, interactPos)) {
+            world.addEntity(crystalEntity);
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -149,16 +168,14 @@ public class ClientSideCrystalHandler {
      * If we don't do this, when the crystal gets replaced the rotations will be wrong
      */
 
-    private static void triggerDesynchronizationCorrection(ClientCrystalEntity clientCrystal, EndCrystalEntity originalCrystal, ClientWorld currentWorld) {
+    private static void sync(ClientCrystalEntity clientCrystal, EndCrystalEntity originalCrystal, ClientWorld world) {
         log("Desynchronization occuring at: " + clientCrystal.getPos());
-        clientSidedCrystals.remove(clientCrystal);
         FACTORY.sync(clientCrystal.endCrystalAge, originalCrystal);
-        currentWorld.removeEntity(clientCrystal.getId(), Entity.RemovalReason.DISCARDED);
+        destroyClientCrystal(clientCrystal, world, false);
     }
 
     /**
      * In case the client entity is somehow alive when another explosion happens, we get rid of it to prevent desyncs
-     */
 
     public static void handleNearbyExplosions(Vec3d pos, float power, MinecraftClient client)
     {
@@ -181,11 +198,14 @@ public class ClientSideCrystalHandler {
                 destroyClientCrystal(nearCrystal, client.world, false);
             }
         }
-    }
+     }
+     */
+
 
     private static boolean positionsMatch(Vec3d pos1, Vec3d pos2) {
         return pos1.equals(pos2);
     }
+
     private static void playExplosionSound(ClientWorld world, Vec3d pos)
     {
         world.playSound(

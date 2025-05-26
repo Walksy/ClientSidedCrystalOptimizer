@@ -19,11 +19,11 @@ public class EndCrystalItemMixin {
     public void onUse(ItemUsageContext context, CallbackInfoReturnable<ActionResult> cir)
     {
         ClientWorld world = MinecraftClient.getInstance().world;
-        BlockPos blockPos = context.getBlockPos().up();
-
-        double d = blockPos.getX();
-        double e = blockPos.getY();
-        double f = blockPos.getZ();
-        ClientSideCrystalHandler.trySpawnClientCrystal(world,d + (double)0.5F, e, f + (double)0.5F);
+        BlockPos blockPos = context.getBlockPos();
+        BlockPos spawnPos = blockPos.up();
+        double d = spawnPos.getX();
+        double e = spawnPos.getY();
+        double f = spawnPos.getZ();
+        ClientSideCrystalHandler.trySpawnClientCrystal(world, blockPos,d + (double)0.5F, e, f + (double)0.5F);
     }
 }

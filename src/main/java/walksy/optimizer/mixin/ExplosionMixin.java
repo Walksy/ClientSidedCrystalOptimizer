@@ -25,7 +25,7 @@ public abstract class ExplosionMixin {
     @Inject(method = "damageEntities", at = @At("HEAD"))
     public void onExplosion(CallbackInfo ci)
     {
-        ClientSideCrystalHandler.handleNearbyExplosions(this.pos, this.getPower(), MinecraftClient.getInstance());
+        //ClientSideCrystalHandler.handleNearbyExplosions(this.pos, this.getPower(), MinecraftClient.getInstance());
     }
 }
 

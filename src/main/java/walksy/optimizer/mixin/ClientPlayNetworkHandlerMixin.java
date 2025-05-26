@@ -30,7 +30,6 @@ public class ClientPlayNetworkHandlerMixin {
     @ModifyArgs(method = "onExplosion", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/world/ClientWorld;playSound(DDDLnet/minecraft/sound/SoundEvent;Lnet/minecraft/sound/SoundCategory;FFZ)V"))
     public void playExplosionSound(Args args)
     {
-        //args 0-3 = x, y, z
         Vec3d position = new Vec3d(args.get(0), args.get(1), args.get(2));
         ClientSideCrystalHandler.interceptServerExplosionSound(position, args);
     }

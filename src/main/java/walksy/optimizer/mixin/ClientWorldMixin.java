@@ -1,5 +1,7 @@
 package walksy.optimizer.mixin;
 
+import net.minecraft.block.BlockState;
+import net.minecraft.util.math.BlockPos;
 import org.spongepowered.asm.mixin.injection.ModifyArgs;
 import walksy.optimizer.handler.ClientSideCrystalHandler;
 import net.minecraft.client.world.ClientWorld;
@@ -18,7 +20,19 @@ public class ClientWorldMixin {
     {
         if (entity instanceof EndCrystalEntity c)
         {
-            ClientSideCrystalHandler.interceptServerCrystalSpawn(c, ci);
+            ClientSideCrystalHandler.handleClientWorldCrystalSpawns(c, ci);
         }
+    }
+
+    @Inject(method = "handleBlockUpdate", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/World;setBlockState(Lnet/minecraft/util/math/BlockPos;Lnet/minecraft/block/BlockState;II)Z", shift = At.Shift.BEFORE), cancellable = true)
+    public void addEntity(BlockPos pos, BlockState state, int flags, CallbackInfo ci)
+    {
+        ClientSideCrystalHandler.handleBlockUpdates(pos, state);
+    }
+
+    @Inject(method = "disconnect", at = @At("HEAD"))
+    public void onDisconnect(CallbackInfo ci)
+    {
+        ClientSideCrystalHandler.onDisconnect();
     }
 }
