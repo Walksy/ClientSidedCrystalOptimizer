@@ -5,7 +5,7 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.text.Text;
 
 
-public class WalksyOptimizerMod implements ModInitializer {
+public class ClientSidedCrystalOptimizer implements ModInitializer {
 
 
     @Override
